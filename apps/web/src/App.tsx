@@ -7,14 +7,13 @@ import AppShell from '@/components/layout/AppShell';
 import LoginPage from '@/pages/login';
 import SignupPage from '@/pages/signup';
 import OnboardingPage from '@/pages/onboarding';
+import AcceptInvitePage from '@/pages/accept-invite';
 import DashboardPage from '@/pages/dashboard';
-
-// Stub pages — will be implemented in later modules
+import SettingsPage from '@/pages/settings';
 import CallHistoryPage from '@/pages/call-history';
 import FrameworksPage from '@/pages/frameworks';
 import AnalyticsPage from '@/pages/analytics';
 import TeamPage from '@/pages/team';
-import SettingsPage from '@/pages/settings';
 import NewCallPage from '@/pages/new-call';
 
 function OnboardingGuard({ children }: { children: React.ReactNode }) {
@@ -40,6 +39,7 @@ export default function App() {
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
+      <Route path="/invite/:token" element={<AcceptInvitePage />} />
 
       <Route
         path="/onboarding"

@@ -14,6 +14,9 @@ import { AppError } from './lib/errors.js';
 import { authRoutes } from './routes/auth.js';
 import { orgRoutes } from './routes/org.js';
 import { offersRoutes } from './routes/offers.js';
+import { usersRoutes } from './routes/users.js';
+import { invitationsRoutes } from './routes/invitations.js';
+import { startInviteExpiryChecker } from './jobs/invite-expiry-checker.js';
 
 const app = Fastify({ logger });
 
@@ -36,6 +39,11 @@ app.get('/health', async () => ({ status: 'ok' }));
 await app.register(authRoutes, { prefix: '/auth' });
 await app.register(orgRoutes, { prefix: '/org' });
 await app.register(offersRoutes, { prefix: '/offers' });
+await app.register(usersRoutes, { prefix: '/users' });
+await app.register(invitationsRoutes, { prefix: '/invitations' });
+
+// Start background jobs
+startInviteExpiryChecker();
 
 const port = Number(env.PORT);
 await app.listen({ port, host: '0.0.0.0' });

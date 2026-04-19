@@ -1,1 +1,118 @@
-// TODO: implement email service
+import { Resend } from 'resend';
+import { env } from '../lib/env.js';
+import { logger } from '../lib/logger.js';
+
+// NOTE: Emails will only send from noreply@closeforce.io once the domain is verified in Resend.
+// Until then, Resend delivers from onboarding@resend.dev in test mode.
+const FROM_ADDRESS = 'CloseForce <noreply@closeforce.io>';
+
+let resend: Resend | null = null;
+function getResend(): Resend {
+  if (!resend) resend = new Resend(env.RESEND_API_KEY);
+  return resend;
+}
+
+function baseLayout(content: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CloseForce.io</title>
+  <style>
+    body { margin: 0; padding: 0; background: #0a0a0a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #e5e7eb; }
+    .wrapper { max-width: 520px; margin: 40px auto; padding: 0 16px; }
+    .logo { text-align: center; margin-bottom: 32px; font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
+    .card { background: #141414; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 36px; }
+    h1 { margin: 0 0 8px; font-size: 22px; font-weight: 600; color: #fff; }
+    p { margin: 0 0 16px; font-size: 15px; line-height: 1.6; color: #9ca3af; }
+    .btn { display: inline-block; background: #3b82f6; color: #fff !important; text-decoration: none; font-weight: 600; font-size: 15px; padding: 14px 28px; border-radius: 8px; margin: 8px 0 24px; }
+    .divider { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 24px 0; }
+    .small { font-size: 12px; color: #4b5563; }
+    .footer { text-align: center; margin-top: 24px; font-size: 12px; color: #374151; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="logo">CloseForce.io</div>
+    <div class="card">
+      ${content}
+    </div>
+    <div class="footer">
+      <p>CloseForce.io · AI Sales Coaching<br />
+      <a href="{{{UNSUBSCRIBE_URL}}}" style="color: #4b5563;">Unsubscribe</a></p>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+export async function sendInvitationEmail(params: {
+  to: string;
+  orgName: string;
+  inviterName: string;
+  token: string;
+  appUrl: string;
+}): Promise<void> {
+  const { to, orgName, inviterName, token, appUrl } = params;
+  const acceptUrl = `${appUrl}/invite/${token}`;
+
+  const html = baseLayout(`
+    <h1>You're invited to join ${orgName}</h1>
+    <p>${inviterName} has invited you to join their CloseForce.io workspace as a closer.</p>
+    <p>CloseForce gives you real-time AI coaching on every sales call — cue cards, objection detection, and post-call summaries.</p>
+    <a href="${acceptUrl}" class="btn">Accept Invitation</a>
+    <hr class="divider" />
+    <p class="small">This invitation expires in 7 days. If you weren't expecting this, you can ignore it.</p>
+    <p class="small">Or copy this link: ${acceptUrl}</p>
+  `).replace('{{{UNSUBSCRIBE_URL}}}', '#');
+
+  const { error } = await getResend().emails.send({
+    from: FROM_ADDRESS,
+    to,
+    subject: `${inviterName} invited you to join ${orgName} on CloseForce`,
+    html,
+  });
+
+  if (error) {
+    logger.error({ err: error, to, orgName }, 'Resend failed to send invitation email');
+    throw new Error(`Email send failed: ${error.message}`);
+  }
+
+  logger.info({ to, orgName }, 'Invitation email sent');
+}
+
+export async function sendTrialExpiringEmail(params: {
+  to: string;
+  fullName: string | null;
+  daysLeft: number;
+  appUrl: string;
+}): Promise<void> {
+  const { to, fullName, daysLeft, appUrl } = params;
+  const name = fullName?.split(' ')[0] ?? 'there';
+  const upgradeUrl = `${appUrl}/settings/billing`;
+
+  const urgency = daysLeft <= 2 ? "Don't lose access." : 'Keep the coaching going.';
+  const html = baseLayout(`
+    <h1>Your trial ends in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}</h1>
+    <p>Hey ${name}, your CloseForce free trial ends in <strong>${daysLeft} day${daysLeft !== 1 ? 's' : ''}</strong>. ${urgency}</p>
+    <p>Upgrade now to keep AI objection detection and live cue cards on every call.</p>
+    <a href="${upgradeUrl}" class="btn">View Plans &amp; Upgrade</a>
+    <hr class="divider" />
+    <p class="small">After your trial ends, you'll have read-only access to past calls. No new bots can be launched until you upgrade.</p>
+  `).replace('{{{UNSUBSCRIBE_URL}}}', `${appUrl}/unsubscribe`);
+
+  const { error } = await getResend().emails.send({
+    from: FROM_ADDRESS,
+    to,
+    subject: `Your CloseForce trial ends in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`,
+    html,
+  });
+
+  if (error) {
+    logger.error({ err: error, to }, 'Failed to send trial expiring email');
+    throw new Error(`Email send failed: ${error.message}`);
+  }
+
+  logger.info({ to, daysLeft }, 'Trial expiring email sent');
+}
