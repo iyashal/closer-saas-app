@@ -7,6 +7,7 @@ import {
   BarChart2,
   Users,
   Settings,
+  Zap,
 } from 'lucide-react';
 import { useOrg } from '@/hooks/use-org';
 
@@ -23,8 +24,9 @@ export default function Sidebar() {
 
   return (
     <aside className="w-56 bg-[#141414] border-r border-white/5 flex flex-col h-full shrink-0">
-      <div className="p-4 border-b border-white/5">
-        <img src="/logo.svg" alt="CloseForce" className="h-7" />
+      <div className="p-4 border-b border-white/5 flex items-center gap-2">
+        <Zap size={18} className="text-blue-400 shrink-0" />
+        <span className="font-bold text-xl text-white">CloseForce</span>
       </div>
 
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
