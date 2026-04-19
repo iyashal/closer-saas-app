@@ -13,7 +13,7 @@ import type { UserRole, Invitation } from '@/types';
 // ─── Shared Tab Nav ──────────────────────────────────────────────────────────
 
 function SettingsNav() {
-  const { isAdmin, isOwner, isTeamPlan } = useOrg();
+  const { isAdmin, isOwner } = useOrg();
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
       isActive ? 'bg-blue-600/20 text-blue-400' : 'text-gray-400 hover:text-white hover:bg-white/5'
@@ -23,7 +23,7 @@ function SettingsNav() {
     <nav className="w-44 shrink-0 space-y-0.5">
       <NavLink to="/settings/profile" className={linkClass}><User size={15} />Profile</NavLink>
       {isOwner && <NavLink to="/settings/organization" className={linkClass}><Building2 size={15} />Organization</NavLink>}
-      {(isAdmin) && isTeamPlan && (
+      {isAdmin && (
         <NavLink to="/settings/members" className={linkClass}><Users size={15} />Members</NavLink>
       )}
       <NavLink to="/settings/notifications" className={linkClass}><Bell size={15} />Notifications</NavLink>
@@ -420,14 +420,27 @@ function NotificationsTab() {
     in_app_call_duration_warning: true,
   });
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  // Keep prefs in sync when the user object updates in the store
+  useEffect(() => {
+    if (user?.notification_preferences) {
+      setPrefs(user.notification_preferences);
+    }
+  }, [user]);
 
   async function toggle(key: PrefKey) {
+    const previous = prefs;
     const newPrefs = { ...prefs, [key]: !prefs[key as keyof typeof prefs] };
     setPrefs(newPrefs);
     setSaving(true);
     try {
       const updated = await api.patch<typeof user>('/users/me', { notification_preferences: newPrefs });
       if (updated) setUser(updated);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      setPrefs(previous);
     } finally {
       setSaving(false);
     }
@@ -440,6 +453,7 @@ function NotificationsTab() {
         <p className="text-sm text-gray-500 mt-0.5">
           Control which alerts you receive. Changes save automatically.
           {saving && <span className="text-blue-400 ml-2">Saving…</span>}
+          {!saving && saved && <span className="text-green-400 ml-2">Saved</span>}
         </p>
       </div>
 
