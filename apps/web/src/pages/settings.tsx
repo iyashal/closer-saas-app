@@ -467,11 +467,11 @@ function NotificationsTab() {
               </div>
               <button
                 onClick={() => void toggle(key)}
-                className={`relative w-10 h-5.5 rounded-full transition-colors shrink-0 ${checked ? 'bg-blue-600' : 'bg-white/10'}`}
+                className={`relative inline-block rounded-full transition-colors shrink-0 ${checked ? 'bg-blue-600' : 'bg-white/10'}`}
                 style={{ height: '22px', width: '40px' }}
               >
                 <span
-                  className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${checked ? 'translate-x-5' : 'translate-x-0.5'}`}
+                  className={`absolute top-[3px] left-[3px] w-4 h-4 bg-white rounded-full shadow transition-transform ${checked ? 'translate-x-[18px]' : 'translate-x-0'}`}
                 />
               </button>
             </div>
