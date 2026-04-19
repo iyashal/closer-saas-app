@@ -11,16 +11,38 @@ export function useUser() {
 
     async function loadUser(accessToken: string) {
       try {
-        const userRes = await fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
+        const authHeader = { Authorization: `Bearer ${accessToken}` };
+
+        const userRes = await fetch('/api/auth/me', { headers: authHeader });
 
         if (!userRes.ok) {
           if (mounted) { setUser(null); setOrg(null); setLoading(false); }
           return;
         }
 
-        const dbUser: User = await userRes.json() as User;
+        let dbUser: User = await userRes.json() as User;
+
+        // Supabase auth.users exists but complete-signup was never called
+        // (happens when email confirmation is required and user logs in via /login).
+        // Auto-complete the signup so the rest of the app has a valid user row.
+        if (!dbUser.org_id) {
+          const fallbackName = (dbUser.email as string)?.split('@')[0] ?? 'User';
+          const signupRes = await fetch('/api/auth/complete-signup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeader },
+            body: JSON.stringify({ full_name: fallbackName }),
+          });
+          if (!signupRes.ok) {
+            if (mounted) { setUser(null); setOrg(null); setLoading(false); }
+            return;
+          }
+          const retryRes = await fetch('/api/auth/me', { headers: authHeader });
+          if (!retryRes.ok) {
+            if (mounted) { setUser(null); setOrg(null); setLoading(false); }
+            return;
+          }
+          dbUser = await retryRes.json() as User;
+        }
 
         const { data: orgData } = await supabase
           .from('organizations')
