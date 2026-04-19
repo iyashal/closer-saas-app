@@ -34,7 +34,28 @@ export async function authRoutes(app: FastifyInstance) {
   });
 
   app.get('/me', { preHandler: authMiddleware }, async (request, reply) => {
-    const req = request as typeof request & { currentUser: Record<string, unknown> };
-    return reply.send(req.currentUser);
+    const req = request as import('../lib/auth-middleware.js').RequestWithUser;
+
+    // Full DB row found by middleware — return it directly.
+    if (req.currentUser.org_id) {
+      return reply.send(req.currentUser);
+    }
+
+    // No public.users row exists yet. This happens when a user confirms their email
+    // and logs in via /login, bypassing the signup page that calls complete-signup.
+    // Create the row lazily so every /auth/me response always returns a full user shape.
+    const authEmail = req.currentUser.email;
+    try {
+      const { user } = await completeSignup({
+        userId: req.currentUser.id,
+        email: authEmail,
+        fullName: authEmail.split('@')[0] ?? 'User',
+      });
+      logger.info({ userId: req.currentUser.id }, '/auth/me: lazily completed signup');
+      return reply.send({ ...user, email: user.email ?? authEmail });
+    } catch (err) {
+      logger.error({ err, userId: req.currentUser.id }, '/auth/me: failed to lazily create user profile');
+      return reply.status(500).send({ message: 'Failed to initialize user profile' });
+    }
   });
 }
