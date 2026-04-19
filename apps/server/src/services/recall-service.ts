@@ -1,7 +1,7 @@
 import { env } from '../lib/env.js';
 import { logger } from '../lib/logger.js';
 
-const RECALL_BASE = 'https://us-east-1.recall.ai/api/v1';
+const RECALL_BASE = 'https://us-west-2.recall.ai/api/v1';
 
 interface CreateBotOptions {
   meeting_url: string;
@@ -44,10 +44,6 @@ export async function createBot(options: CreateBotOptions): Promise<RecallBot> {
       meeting_url: options.meeting_url,
       bot_name: options.bot_name,
       webhook_url: options.webhook_url,
-      real_time_transcription: {
-        destination_url: options.webhook_url.replace('/webhooks/recall', '/webhooks/recall/transcript'),
-        partial_results: true,
-      },
     }),
   });
 
