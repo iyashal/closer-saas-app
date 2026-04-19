@@ -16,6 +16,8 @@ import { orgRoutes } from './routes/org.js';
 import { offersRoutes } from './routes/offers.js';
 import { usersRoutes } from './routes/users.js';
 import { invitationsRoutes } from './routes/invitations.js';
+import { callsRoutes } from './routes/calls.js';
+import { recallWebhookRoutes } from './routes/webhooks/recall.js';
 import { startInviteExpiryChecker } from './jobs/invite-expiry-checker.js';
 
 const app = Fastify({ logger });
@@ -41,6 +43,8 @@ await app.register(orgRoutes, { prefix: '/org' });
 await app.register(offersRoutes, { prefix: '/offers' });
 await app.register(usersRoutes, { prefix: '/users' });
 await app.register(invitationsRoutes, { prefix: '/invitations' });
+await app.register(callsRoutes, { prefix: '/calls' });
+await app.register(recallWebhookRoutes, { prefix: '/webhooks/recall' });
 
 // Start background jobs
 startInviteExpiryChecker();

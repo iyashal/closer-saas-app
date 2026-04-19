@@ -15,6 +15,7 @@ import FrameworksPage from '@/pages/frameworks';
 import AnalyticsPage from '@/pages/analytics';
 import TeamPage from '@/pages/team';
 import NewCallPage from '@/pages/new-call';
+import CallLivePage from '@/pages/call-live';
 import OffersPage from '@/pages/offers/index';
 import OfferDetailPage from '@/pages/offers/[id]';
 
@@ -74,6 +75,17 @@ export default function App() {
                 <NewCallPage />
               </AppShell>
             </TrialExpiredGuard>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/call/:callId"
+        element={
+          <ProtectedRoute>
+            <AppShell>
+              <CallLivePage />
+            </AppShell>
           </ProtectedRoute>
         }
       />
