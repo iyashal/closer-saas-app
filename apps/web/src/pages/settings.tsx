@@ -214,8 +214,7 @@ interface OrgMember {
 
 function MembersTab() {
   const { user } = useAuth();
-  const { org } = useOrg();
-  const { isTeamPlan } = useOrg();
+  const { org, isTeamPlan } = useOrg();
   const [members, setMembers] = useState<OrgMember[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -421,13 +420,6 @@ function NotificationsTab() {
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-
-  // Keep prefs in sync when the user object updates in the store
-  useEffect(() => {
-    if (user?.notification_preferences) {
-      setPrefs(user.notification_preferences);
-    }
-  }, [user]);
 
   async function toggle(key: PrefKey) {
     const previous = prefs;
