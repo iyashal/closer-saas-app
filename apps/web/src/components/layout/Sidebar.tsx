@@ -8,6 +8,7 @@ import {
   Users,
   Settings,
   Zap,
+  Tag,
 } from 'lucide-react';
 import { useOrg } from '@/hooks/use-org';
 
@@ -16,6 +17,7 @@ const navItems = [
   { to: '/call/new', icon: PhoneCall, label: 'New Call' },
   { to: '/calls', icon: Clock, label: 'Call History' },
   { to: '/frameworks', icon: BookOpen, label: 'Frameworks' },
+  { to: '/offers', icon: Tag, label: 'Offers' },
   { to: '/analytics', icon: BarChart2, label: 'Analytics' },
 ];
 

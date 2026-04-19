@@ -79,11 +79,12 @@ export async function offersRoutes(app: FastifyInstance) {
 
     const { error } = await supabase
       .from('offers')
-      .delete()
+      .update({ is_active: false })
       .eq('id', id)
       .eq('org_id', req.currentUser.org_id);
 
     if (error) throw new NotFoundError('Offer not found');
+    logger.info({ userId: req.currentUser.id, offerId: id }, 'Offer deactivated');
     return reply.status(204).send();
   });
 }

@@ -15,6 +15,8 @@ import FrameworksPage from '@/pages/frameworks';
 import AnalyticsPage from '@/pages/analytics';
 import TeamPage from '@/pages/team';
 import NewCallPage from '@/pages/new-call';
+import OffersPage from '@/pages/offers/index';
+import OfferDetailPage from '@/pages/offers/[id]';
 
 function OnboardingGuard({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
@@ -93,6 +95,28 @@ export default function App() {
           <ProtectedRoute>
             <AppShell>
               <FrameworksPage />
+            </AppShell>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/offers"
+        element={
+          <ProtectedRoute>
+            <AppShell>
+              <OffersPage />
+            </AppShell>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/offers/:id"
+        element={
+          <ProtectedRoute>
+            <AppShell>
+              <OfferDetailPage />
             </AppShell>
           </ProtectedRoute>
         }
