@@ -8,7 +8,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import RoleGate from '@/components/RoleGate';
 import InviteModal from '@/components/settings/InviteModal';
 import MemberRow from '@/components/settings/MemberRow';
-import type { UserRole, Invitation } from '@/types';
+import type { UserRole, Invitation, User as UserRecord } from '@/types';
 
 // ─── Shared Tab Nav ──────────────────────────────────────────────────────────
 
@@ -420,19 +420,22 @@ function NotificationsTab() {
   });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   async function toggle(key: PrefKey) {
     const previous = prefs;
     const newPrefs = { ...prefs, [key]: !prefs[key as keyof typeof prefs] };
     setPrefs(newPrefs);
     setSaving(true);
+    setSaveError('');
     try {
-      const updated = await api.patch<typeof user>('/users/me', { notification_preferences: newPrefs });
-      if (updated) setUser(updated);
+      const updated = await api.patch<UserRecord>('/users/me', { notification_preferences: newPrefs });
+      setUser(updated);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch {
+    } catch (err) {
       setPrefs(previous);
+      setSaveError(err instanceof Error ? err.message : 'Failed to save');
     } finally {
       setSaving(false);
     }
@@ -446,6 +449,7 @@ function NotificationsTab() {
           Control which alerts you receive. Changes save automatically.
           {saving && <span className="text-blue-400 ml-2">Saving…</span>}
           {!saving && saved && <span className="text-green-400 ml-2">Saved</span>}
+          {saveError && <span className="text-red-400 ml-2">{saveError}</span>}
         </p>
       </div>
 
