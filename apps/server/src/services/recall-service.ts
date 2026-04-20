@@ -1,3 +1,9 @@
+// Transcription approach: Recall managed (hosted transcription).
+// recording_config.transcript.provider.deepgram_streaming — Recall connects to Deepgram on our
+// behalf using our API key. Transcripts arrive as webhook events (transcript.data for final
+// utterances, transcript.partial_data for in-progress). We receive them at the same
+// /webhooks/recall endpoint via recording_config.realtime_endpoints.
+
 import { env } from '../lib/env.js';
 import { logger } from '../lib/logger.js';
 
@@ -44,17 +50,25 @@ export async function createBot(options: CreateBotOptions): Promise<RecallBot> {
       meeting_url: options.meeting_url,
       bot_name: options.bot_name,
       webhook_url: options.webhook_url,
-      transcription_options: {
-        provider: 'deepgram',
-        deepgram: {
-          api_key: env.DEEPGRAM_API_KEY,
-          model: 'nova-3',
-          language: 'en',
-          punctuate: true,
-          diarize: true,
-          interim_results: true,
-          smart_format: true,
+      recording_config: {
+        transcript: {
+          provider: {
+            // Recall hosts the Deepgram connection; we receive results via webhook
+            deepgram_streaming: {
+              api_key: env.DEEPGRAM_API_KEY,
+              model: 'nova-3',
+              language: 'en',
+            },
+          },
         },
+        // Push transcript events to our webhook handler in real time
+        realtime_endpoints: [
+          {
+            type: 'webhook',
+            url: options.webhook_url,
+            events: ['transcript.data', 'transcript.partial_data'],
+          },
+        ],
       },
     }),
   });
