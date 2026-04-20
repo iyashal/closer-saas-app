@@ -225,6 +225,7 @@ export async function processCall(callId: string): Promise<void> {
     if (summaryResult) {
       updates.summary = summaryResult.summary;
       updates.deal_health_score = summaryResult.deal_health_score;
+      updates.deal_health_reasoning = summaryResult.deal_health_reasoning;
       updates.next_steps = summaryResult.next_steps;
       updates.what_you_should_have_said = summaryResult.objection_log.map((entry) => ({
         timestamp: entry.timestamp_ms,
@@ -232,6 +233,9 @@ export async function processCall(callId: string): Promise<void> {
         your_response: entry.how_closer_handled,
         better_response: entry.better_alternative,
       }));
+      if (summaryResult.unicorn_closer_grade) {
+        updates.unicorn_closer_grade = summaryResult.unicorn_closer_grade;
+      }
     } else {
       // Partial failure — mark completed with a note so the UI can still show the transcript
       updates.summary =

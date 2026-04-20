@@ -21,4 +21,7 @@ export type {
   CueCardShown,
   Notification,
   RealtimeDetectionResult,
+  UnicornCloserGrade,
+  RationalizationMissed,
+  LeadershipEnergies,
 } from '@closer/shared';

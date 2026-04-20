@@ -40,9 +40,16 @@ export type CoachingNudge =
   | 'pitched_too_early'
   | 'good_trial_close_moment'
   | 'let_silence_work'
+  | 'rationalization_detected'
+  | 'minimizing_language'
+  | 'closer_assumption'
+  | 'missed_emotional_thread'
+  | 'closer_broke_frame'
+  | 'surface_level_acceptance'
+  | 'missed_summary_pause'
   | 'none';
 
-export type Framework = 'nepq' | 'straight_line' | 'custom';
+export type Framework = 'nepq' | 'straight_line' | 'unicorn_closer' | 'custom';
 
 export interface Organization {
   id: string;
@@ -58,6 +65,7 @@ export interface Organization {
     bot_display_name: string;
     consent_disclosure_text: string;
     data_retention_days: number;
+    default_framework: Framework;
   };
   created_at: string;
   updated_at: string;
@@ -113,6 +121,36 @@ export interface Offer {
   created_at: string;
 }
 
+export interface RationalizationMissed {
+  timestamp_ms: number;
+  what_prospect_said: string;
+  what_closer_should_have_said: string;
+}
+
+export interface LeadershipEnergies {
+  abundance: number;
+  direction: number;
+  non_attachment: number;
+  responsibility: number;
+  curiosity: number;
+}
+
+export interface UnicornCloserGrade {
+  presence_score: number;
+  presence_notes: string;
+  frame_control_score: number;
+  frame_control_notes: string;
+  rationalization_catches: number;
+  rationalizations_missed: RationalizationMissed[];
+  talk_ratio_grade: string;
+  dot_connecting_score: number;
+  dot_connecting_notes: string;
+  summary_pauses_used: number;
+  three_whys_depth: string;
+  leadership_energies: LeadershipEnergies;
+  top_three_improvements: string[];
+}
+
 export interface Call {
   id: string;
   user_id: string;
@@ -126,6 +164,7 @@ export interface Call {
   outcome: CallOutcome;
   deal_value: number | null;
   deal_health_score: number | null;
+  deal_health_reasoning: string | null;
   talk_ratio_closer: number | null;
   talk_ratio_prospect: number | null;
   duration_seconds: number | null;
@@ -137,6 +176,7 @@ export interface Call {
   framework_used: Framework;
   cue_cards_shown_count: number;
   cue_cards_used_count: number;
+  unicorn_closer_grade: UnicornCloserGrade | null;
   error_message: string | null;
   started_at: string | null;
   ended_at: string | null;
@@ -205,6 +245,7 @@ export interface RealtimeDetectionResult {
   objection_type: ObjectionType;
   buying_signal: BuyingSignal;
   coaching_nudge: CoachingNudge;
+  coaching_detail: string;
   confidence: number;
 }
 
@@ -222,6 +263,7 @@ export interface PostCallResult {
   deal_health_reasoning: string;
   next_steps: string[];
   follow_up_email: string;
+  unicorn_closer_grade?: UnicornCloserGrade;
 }
 
 export interface CallSummary extends Call {

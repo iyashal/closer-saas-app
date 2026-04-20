@@ -13,6 +13,7 @@ const patchOrgBody = z.object({
       bot_display_name: z.string().max(80).optional(),
       consent_disclosure_text: z.string().max(500).optional(),
       data_retention_days: z.number().int().min(1).max(365).optional(),
+      default_framework: z.enum(['nepq', 'straight_line', 'unicorn_closer', 'custom']).optional(),
     })
     .optional(),
 });
