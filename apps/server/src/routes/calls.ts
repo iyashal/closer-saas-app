@@ -6,6 +6,7 @@ import { logger } from '../lib/logger.js';
 import { NotFoundError } from '../lib/errors.js';
 import { env } from '../lib/env.js';
 import { createBot, removeBot } from '../services/recall-service.js';
+import { stopCallSession } from '../ws/handler.js';
 
 const VALID_MEETING_HOSTS = ['zoom.us', 'meet.google.com', 'us02web.zoom.us', 'us06web.zoom.us'];
 
@@ -154,9 +155,18 @@ export async function callsRoutes(app: FastifyInstance) {
     const settings = org.settings as { bot_display_name?: string } | null;
     const botName = settings?.bot_display_name?.trim() || `${org.name} Notes`;
     const webhookUrl = `${env.API_URL}/webhooks/recall`;
+    // Derive the WebSocket URL from API_URL — Recall.ai streams audio here once the bot joins.
+    const audioWsUrl =
+      env.API_URL.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://') +
+      `/ws/recall/${call.id}`;
 
     try {
-      const bot = await createBot({ meeting_url, bot_name: botName, webhook_url: webhookUrl });
+      const bot = await createBot({
+        meeting_url,
+        bot_name: botName,
+        webhook_url: webhookUrl,
+        audio_ws_url: audioWsUrl,
+      });
 
       await supabase.from('calls').update({ recall_bot_id: bot.id }).eq('id', call.id);
 
@@ -213,6 +223,11 @@ export async function callsRoutes(app: FastifyInstance) {
       .from('calls')
       .update({ status: finalStatus, ended_at: new Date().toISOString() })
       .eq('id', id);
+
+    // Clean up the active audio session if one is running
+    await stopCallSession(id).catch((err) =>
+      logger.error({ err, callId: id }, 'Error stopping call session on bot removal'),
+    );
 
     logger.info({ callId: id, userId: user.id, finalStatus }, 'Bot removed from call');
     return reply.status(204).send();

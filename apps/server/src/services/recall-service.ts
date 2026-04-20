@@ -7,6 +7,9 @@ interface CreateBotOptions {
   meeting_url: string;
   bot_name: string;
   webhook_url: string;
+  // Direct audio streaming: Recall.ai connects to this WebSocket endpoint with raw PCM audio.
+  // Requires a publicly accessible server (Railway). Not reachable from local dev.
+  audio_ws_url?: string;
 }
 
 interface RecallBot {
@@ -44,6 +47,9 @@ export async function createBot(options: CreateBotOptions): Promise<RecallBot> {
       meeting_url: options.meeting_url,
       bot_name: options.bot_name,
       webhook_url: options.webhook_url,
+      ...(options.audio_ws_url
+        ? { real_time_media: { websocket_audio_destination_url: options.audio_ws_url } }
+        : {}),
     }),
   });
 

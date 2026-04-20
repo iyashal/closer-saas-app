@@ -8,6 +8,7 @@ config({ path: resolve(process.cwd(), '../../.env') });
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
+import websocket from '@fastify/websocket';
 import { logger } from './lib/logger.js';
 import { env } from './lib/env.js';
 import { AppError } from './lib/errors.js';
@@ -19,6 +20,7 @@ import { invitationsRoutes } from './routes/invitations.js';
 import { callsRoutes } from './routes/calls.js';
 import { recallWebhookRoutes } from './routes/webhooks/recall.js';
 import { startInviteExpiryChecker } from './jobs/invite-expiry-checker.js';
+import { registerWsRoutes, stopAllSessions } from './ws/handler.js';
 
 const app = Fastify({ logger });
 
@@ -27,6 +29,8 @@ await app.register(cors, {
   credentials: true,
 });
 await app.register(helmet);
+// Must be registered before any WebSocket route handlers
+await app.register(websocket);
 
 app.setErrorHandler((error, _request, reply) => {
   if (error instanceof AppError) {
@@ -45,9 +49,21 @@ await app.register(usersRoutes, { prefix: '/users' });
 await app.register(invitationsRoutes, { prefix: '/invitations' });
 await app.register(callsRoutes, { prefix: '/calls' });
 await app.register(recallWebhookRoutes, { prefix: '/webhooks/recall' });
+await app.register(registerWsRoutes);
 
 // Start background jobs
 startInviteExpiryChecker();
+
+// Graceful shutdown — flush in-flight transcripts before exit
+const shutdown = async (signal: string) => {
+  logger.info({ signal }, 'Shutdown signal received');
+  await stopAllSessions();
+  await app.close();
+  process.exit(0);
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 const port = Number(env.PORT);
 await app.listen({ port, host: '0.0.0.0' });

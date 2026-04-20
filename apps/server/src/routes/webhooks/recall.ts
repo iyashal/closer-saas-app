@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { supabase } from '../../lib/supabase.js';
 import { logger } from '../../lib/logger.js';
 import { createNotification } from '../../services/notification-service.js';
+import { stopCallSession } from '../../ws/handler.js';
 
 interface RecallWebhookPayload {
   event: string;
@@ -80,8 +81,8 @@ export async function recallWebhookRoutes(app: FastifyInstance) {
           .from('calls')
           .update({ status: 'live', started_at: now })
           .eq('id', callId);
+        // Audio pipeline starts when Recall.ai connects to /ws/recall/:callId — no action needed here
         logger.info({ callId, userId, orgId }, 'Bot in call — call is live');
-        // Module 5: start audio pipeline here
         break;
       }
 
@@ -91,6 +92,10 @@ export async function recallWebhookRoutes(app: FastifyInstance) {
           .from('calls')
           .update({ status: 'processing', ended_at: new Date().toISOString() })
           .eq('id', callId);
+        // Ensure audio session is stopped (idempotent — no-ops if already closed)
+        await stopCallSession(callId).catch((err) =>
+          logger.error({ err, callId }, 'Error stopping session on bot.call_ended'),
+        );
         logger.info({ callId, userId, orgId }, 'Call ended — queued for post-processing');
         // Module 8: trigger post-call processing here
         break;
