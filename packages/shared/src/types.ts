@@ -207,3 +207,24 @@ export interface RealtimeDetectionResult {
   coaching_nudge: CoachingNudge;
   confidence: number;
 }
+
+export interface PostCallObjectionEntry {
+  timestamp_ms: number;
+  what_prospect_said: string;
+  how_closer_handled: string;
+  better_alternative: string;
+}
+
+export interface PostCallResult {
+  summary: string;
+  objection_log: PostCallObjectionEntry[];
+  deal_health_score: number;
+  deal_health_reasoning: string;
+  next_steps: string[];
+  follow_up_email: string;
+}
+
+export interface CallSummary extends Call {
+  offer?: Pick<Offer, 'name' | 'price' | 'guarantee' | 'description'>;
+  transcript_lines?: TranscriptLine[];
+}

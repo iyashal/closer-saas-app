@@ -7,6 +7,7 @@ import { NotFoundError } from '../lib/errors.js';
 import { env } from '../lib/env.js';
 import { createBot, removeBot } from '../services/recall-service.js';
 import { stopCallSession } from '../ws/handler.js';
+import { processCall } from '../services/post-call-service.js';
 
 const VALID_MEETING_HOSTS = ['zoom.us', 'meet.google.com', 'us02web.zoom.us', 'us06web.zoom.us'];
 
@@ -274,7 +275,12 @@ export async function callsRoutes(app: FastifyInstance) {
       logger.error({ err, callId: id }, 'Error stopping call session on end'),
     );
 
-    logger.info({ callId: id, userId: user.id }, 'Call ended — queued for post-call processing');
+    // Fire-and-forget — do not await, reply immediately
+    processCall(id).catch((err) =>
+      logger.error({ err, callId: id }, 'processCall failed after /end'),
+    );
+
+    logger.info({ callId: id, userId: user.id }, 'Call ended — post-call processing triggered');
     return reply.send({ message: 'Call ended successfully' });
   });
 

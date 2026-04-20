@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { supabase } from '../../lib/supabase.js';
 import { logger } from '../../lib/logger.js';
 import { createNotification } from '../../services/notification-service.js';
+import { processCall } from '../../services/post-call-service.js';
 import {
   startCallSession,
   stopCallSession,
@@ -169,8 +170,12 @@ export async function recallWebhookRoutes(app: FastifyInstance) {
           logger.error({ err, callId }, 'Error stopping session on bot.call_ended'),
         );
 
-        logger.info({ callId, userId, orgId }, 'Call ended — queued for post-processing');
-        // Module 8: trigger post-call processing here
+        // Fire-and-forget — webhook must respond quickly
+        processCall(callId).catch((err) =>
+          logger.error({ err, callId }, 'processCall failed after bot.call_ended'),
+        );
+
+        logger.info({ callId, userId, orgId }, 'Call ended — post-call processing triggered');
         break;
       }
 
