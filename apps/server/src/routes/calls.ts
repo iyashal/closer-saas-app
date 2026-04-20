@@ -25,6 +25,11 @@ const launchBody = z.object({
   prospect_name: z.string().max(120).optional(),
 });
 
+const updateCallBody = z.object({
+  outcome: z.enum(['closed', 'follow_up', 'lost']).optional(),
+  deal_value: z.number().positive().optional(),
+});
+
 export async function callsRoutes(app: FastifyInstance) {
   app.get('/', { preHandler: authMiddleware }, async (request, reply) => {
     const req = request as RequestWithUser;
@@ -179,6 +184,98 @@ export async function callsRoutes(app: FastifyInstance) {
         message: 'Failed to connect to meeting. Check the link and try again.',
       });
     }
+  });
+
+  app.patch('/:id', { preHandler: authMiddleware }, async (request, reply) => {
+    const req = request as RequestWithUser;
+    const user = req.currentUser;
+    const { id } = request.params as { id: string };
+
+    const body = updateCallBody.safeParse(request.body);
+    if (!body.success) {
+      return reply.status(400).send({ message: 'Invalid request body' });
+    }
+
+    const { data: call } = await supabase
+      .from('calls')
+      .select('id, user_id, org_id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (!call) throw new NotFoundError('Call not found');
+
+    const canAccess =
+      call.user_id === user.id ||
+      (call.org_id === user.org_id && (user.role === 'owner' || user.role === 'admin'));
+
+    if (!canAccess) throw new NotFoundError('Call not found');
+
+    const updates: Record<string, unknown> = {};
+    if (body.data.outcome !== undefined) updates.outcome = body.data.outcome;
+    if (body.data.deal_value !== undefined) updates.deal_value = body.data.deal_value;
+
+    if (Object.keys(updates).length === 0) {
+      return reply.status(400).send({ message: 'No valid fields to update' });
+    }
+
+    const { data, error } = await supabase
+      .from('calls')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      logger.error({ err: error, callId: id, userId: user.id }, 'Failed to update call');
+      return reply.status(500).send({ message: 'Failed to update call' });
+    }
+
+    logger.info({ callId: id, userId: user.id, updates }, 'Call updated');
+    return reply.send(data);
+  });
+
+  app.post('/:id/end', { preHandler: authMiddleware }, async (request, reply) => {
+    const req = request as RequestWithUser;
+    const user = req.currentUser;
+    const { id } = request.params as { id: string };
+
+    const { data: call } = await supabase
+      .from('calls')
+      .select('id, user_id, org_id, recall_bot_id, status, started_at')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (!call) throw new NotFoundError('Call not found');
+
+    const canAccess =
+      call.user_id === user.id ||
+      (call.org_id === user.org_id && (user.role === 'owner' || user.role === 'admin'));
+
+    if (!canAccess) throw new NotFoundError('Call not found');
+
+    if (!['live', 'bot_joining'].includes(call.status)) {
+      return reply.status(400).send({ message: 'Call is not active' });
+    }
+
+    if (call.recall_bot_id) {
+      try {
+        await removeBot(call.recall_bot_id);
+      } catch (err) {
+        logger.error({ err, callId: id, botId: call.recall_bot_id }, 'Bot removal on end — continuing');
+      }
+    }
+
+    await supabase
+      .from('calls')
+      .update({ status: 'processing', ended_at: new Date().toISOString() })
+      .eq('id', id);
+
+    await stopCallSession(id).catch((err) =>
+      logger.error({ err, callId: id }, 'Error stopping call session on end'),
+    );
+
+    logger.info({ callId: id, userId: user.id }, 'Call ended — queued for post-call processing');
+    return reply.send({ message: 'Call ended successfully' });
   });
 
   app.delete('/:id/bot', { preHandler: authMiddleware }, async (request, reply) => {

@@ -16,6 +16,7 @@ import AnalyticsPage from '@/pages/analytics';
 import TeamPage from '@/pages/team';
 import NewCallPage from '@/pages/new-call';
 import CallLivePage from '@/pages/call-live';
+import CallSummaryPage from '@/pages/call-summary';
 import OffersPage from '@/pages/offers/index';
 import OfferDetailPage from '@/pages/offers/[id]';
 
@@ -85,6 +86,17 @@ export default function App() {
           <ProtectedRoute>
             <AppShell>
               <CallLivePage />
+            </AppShell>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/calls/:callId/summary"
+        element={
+          <ProtectedRoute>
+            <AppShell>
+              <CallSummaryPage />
             </AppShell>
           </ProtectedRoute>
         }
