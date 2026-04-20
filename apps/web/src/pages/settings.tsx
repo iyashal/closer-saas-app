@@ -100,12 +100,21 @@ function ProfileTab() {
 
 // ─── Organization Tab ─────────────────────────────────────────────────────────
 
+const FRAMEWORK_OPTIONS = [
+  { value: 'unicorn_closer', label: 'Unicorn Closer', description: 'Proprietary Unicorn Closer methodology — recommended' },
+  { value: 'nepq', label: 'NEPQ', description: 'Neuro-Emotional Persuasion Questioning' },
+  { value: 'straight_line', label: 'Straight Line', description: 'Straight Line Persuasion System' },
+] as const;
+
 function OrganizationTab() {
   const { org, setOrg } = useAuthStore();
   const [name, setName] = useState(org?.name ?? '');
   const [botName, setBotName] = useState(org?.settings?.bot_display_name ?? '');
   const [consent, setConsent] = useState(org?.settings?.consent_disclosure_text ?? '');
   const [retention, setRetention] = useState(String(org?.settings?.data_retention_days ?? 90));
+  const [framework, setFramework] = useState<string>(
+    org?.settings?.default_framework ?? 'unicorn_closer',
+  );
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
@@ -120,6 +129,7 @@ function OrganizationTab() {
           bot_display_name: botName.trim(),
           consent_disclosure_text: consent.trim(),
           data_retention_days: parseInt(retention, 10) || 90,
+          default_framework: framework,
         },
       });
       if (updated && org) setOrg({ ...org, ...updated });
@@ -148,6 +158,23 @@ function OrganizationTab() {
             required
             className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500 transition-colors"
           />
+        </div>
+        <div>
+          <label className="block text-sm text-gray-400 mb-1.5">
+            Default coaching framework
+          </label>
+          <select
+            value={framework}
+            onChange={(e) => setFramework(e.target.value)}
+            className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500 transition-colors"
+          >
+            {FRAMEWORK_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-600 mt-1">
+            {FRAMEWORK_OPTIONS.find((o) => o.value === framework)?.description}
+          </p>
         </div>
         <div>
           <label className="block text-sm text-gray-400 mb-1.5">
