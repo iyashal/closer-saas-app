@@ -16,6 +16,18 @@ interface PendingTranscriptLine {
   timestamp_ms: number;
 }
 
+export interface CueCardBroadcastPayload {
+  card_id: string;
+  category: string;
+  title: string;
+  suggested_response: string;
+  framework_reference: string | null;
+  trigger_text: string;
+  confidence: number;
+  coaching_nudge: string;
+  coaching_detail: string;
+}
+
 interface TalkRatioPayload {
   closer_ratio: number;
   prospect_ratio: number;
@@ -53,6 +65,7 @@ export class CallSession {
   private readonly transcriptChannel: ReturnType<typeof supabase.channel>;
   private readonly talkRatioChannel: ReturnType<typeof supabase.channel>;
   private readonly statusChannel: ReturnType<typeof supabase.channel>;
+  private readonly cueCardsChannel: ReturnType<typeof supabase.channel>;
 
   constructor(callId: string, userId: string, orgId: string) {
     this.callId = callId;
@@ -63,6 +76,7 @@ export class CallSession {
     this.transcriptChannel = supabase.channel(`call:${callId}:transcript`);
     this.talkRatioChannel = supabase.channel(`call:${callId}:talk_ratio`);
     this.statusChannel = supabase.channel(`call:${callId}:status`);
+    this.cueCardsChannel = supabase.channel(`call:${callId}:cues`);
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
@@ -101,6 +115,7 @@ export class CallSession {
       this.transcriptChannel.unsubscribe(),
       this.talkRatioChannel.unsubscribe(),
       this.statusChannel.unsubscribe(),
+      this.cueCardsChannel.unsubscribe(),
     ]);
 
     logger.info({ callId: this.callId }, 'Call session stopped');
@@ -162,6 +177,16 @@ export class CallSession {
     return this.transcriptBuffer;
   }
 
+  /** Push a cue card to the frontend. coaching_detail renders beneath the suggested response. */
+  broadcastCueCard(payload: CueCardBroadcastPayload): void {
+    if (!this.isActive) return;
+    this.cueCardsChannel
+      .send({ type: 'broadcast', event: 'cue_card', payload })
+      .catch((err) =>
+        logger.error({ err, callId: this.callId }, 'Failed to broadcast cue card'),
+      );
+  }
+
   // ── Supabase channel subscriptions ────────────────────────────────────────
 
   private subscribeChannels(): Promise<void> {
@@ -169,11 +194,12 @@ export class CallSession {
       let ready = 0;
       const onReady = () => {
         ready++;
-        if (ready === 3) resolve();
+        if (ready === 4) resolve();
       };
       this.transcriptChannel.subscribe((s) => { if (s === 'SUBSCRIBED') onReady(); });
       this.talkRatioChannel.subscribe((s) => { if (s === 'SUBSCRIBED') onReady(); });
       this.statusChannel.subscribe((s) => { if (s === 'SUBSCRIBED') onReady(); });
+      this.cueCardsChannel.subscribe((s) => { if (s === 'SUBSCRIBED') onReady(); });
       // Don't block startup indefinitely if Supabase is slow
       setTimeout(resolve, 5_000);
     });

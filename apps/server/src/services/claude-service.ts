@@ -5,6 +5,7 @@ import { env } from '../lib/env.js';
 import { logger } from '../lib/logger.js';
 import { buildPostCallPrompt } from '../prompts/post-call-summary.js';
 import { buildFollowUpPrompt } from '../prompts/follow-up-email.js';
+import { buildRealtimeDetectionPrompt } from '../prompts/realtime-detection.js';
 
 let client: Anthropic | null = null;
 
@@ -38,13 +39,44 @@ const PostCallObjectionEntrySchema = z.object({
   better_alternative: z.string(),
 });
 
+const LeadershipEnergiesSchema = z.object({
+  abundance: z.number().min(0).max(10),
+  direction: z.number().min(0).max(10),
+  non_attachment: z.number().min(0).max(10),
+  responsibility: z.number().min(0).max(10),
+  curiosity: z.number().min(0).max(10),
+});
+
+const RationalizationMissedSchema = z.object({
+  timestamp_ms: z.number().default(0),
+  what_prospect_said: z.string(),
+  what_closer_should_have_said: z.string(),
+});
+
+const UnicornCloserGradeSchema = z.object({
+  presence_score: z.number().min(0).max(100),
+  presence_notes: z.string(),
+  frame_control_score: z.number().min(0).max(100),
+  frame_control_notes: z.string(),
+  rationalization_catches: z.number().min(0),
+  rationalizations_missed: z.array(RationalizationMissedSchema).default([]),
+  talk_ratio_grade: z.string(),
+  dot_connecting_score: z.number().min(0).max(100),
+  dot_connecting_notes: z.string(),
+  summary_pauses_used: z.number().min(0),
+  three_whys_depth: z.string(),
+  leadership_energies: LeadershipEnergiesSchema,
+  top_three_improvements: z.array(z.string()).length(3),
+});
+
 export const PostCallResultSchema = z.object({
   summary: z.string(),
   objection_log: z.array(PostCallObjectionEntrySchema).default([]),
   deal_health_score: z.number().min(0).max(100),
-  deal_health_reasoning: z.string(),
+  deal_health_reasoning: z.string().default(''),
   next_steps: z.array(z.string()).min(1),
   follow_up_email: z.string(),
+  unicorn_closer_grade: UnicornCloserGradeSchema.optional(),
 });
 
 export type PostCallResult = z.infer<typeof PostCallResultSchema>;
@@ -74,8 +106,16 @@ const RealtimeDetectionSchema = z.object({
     'pitched_too_early',
     'good_trial_close_moment',
     'let_silence_work',
+    'rationalization_detected',
+    'minimizing_language',
+    'closer_assumption',
+    'missed_emotional_thread',
+    'closer_broke_frame',
+    'surface_level_acceptance',
+    'missed_summary_pause',
     'none',
   ]),
+  coaching_detail: z.string().default(''),
   confidence: z.number().min(0).max(1),
 });
 
@@ -84,36 +124,17 @@ export type RealtimeDetectionResult = z.infer<typeof RealtimeDetectionSchema>;
 // ─── Real-time detection (Module 6) ──────────────────────────────────────────
 
 export async function detectObjection(
-  transcriptBuffer: string,
+  transcriptBuffer: readonly string[],
   offer: Offer,
   framework: string,
 ): Promise<RealtimeDetectionResult | null> {
-  const systemPrompt = `You are an expert high-ticket sales call analyzer for CloseForce.io. You are analyzing a LIVE sales call.
-
-The closer is selling: ${offer.name}
-Price: $${offer.price}
-Description: ${offer.description ?? ''}
-Guarantee: ${offer.guarantee ?? ''}
-Known objections for this offer: ${offer.common_objections?.join(', ') || 'none'}
-Framework: ${framework}
-
-Analyze the latest transcript and classify what is happening RIGHT NOW.
-
-Rules:
-- Only flag if genuinely confident. False positives are WORSE than misses — a wrong cue card mid-close distracts and breaks flow.
-- Confidence 0.8+ only when classification is unambiguous.
-- "none" is correct most of the time. Rapport, discovery, and neutral discussion are not flagged.
-- Distinguish real objections from questions. "How much is it?" = curiosity. "That's way more than I expected" = price objection.
-
-Respond ONLY with valid JSON. No markdown, no explanation.`;
-
-  const userContent = `Recent transcript:\n${transcriptBuffer}`;
+  const { system, userContent } = buildRealtimeDetectionPrompt(offer, framework, transcriptBuffer);
 
   try {
     const response = await getClient().messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 256,
-      system: systemPrompt,
+      max_tokens: 300,
+      system,
       messages: [{ role: 'user', content: userContent }],
     });
 
@@ -141,7 +162,7 @@ async function callSonnetForSummary(
 
   const response = await getClient().messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
+    max_tokens: 6000,
     temperature: 0.3,
     messages: [{ role: 'user', content: prompt }],
   });
