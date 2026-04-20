@@ -55,9 +55,12 @@ export async function createBot(options: CreateBotOptions): Promise<RecallBot> {
           provider: {
             // Recall hosts the Deepgram connection; we receive results via webhook
             deepgram_streaming: {
-              api_key: env.DEEPGRAM_API_KEY,
               model: 'nova-3',
               language: 'en',
+              punctuate: true,
+              diarize: true,
+              interim_results: true,
+              smart_format: true,
             },
           },
         },
