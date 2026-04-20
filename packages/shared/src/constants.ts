@@ -14,7 +14,7 @@ export const OBJECTION_CATEGORIES = [
 
 export type ObjectionCategory = (typeof OBJECTION_CATEGORIES)[number];
 
-export const FRAMEWORKS = ['nepq', 'straight_line', 'custom'] as const;
+export const FRAMEWORKS = ['nepq', 'straight_line', 'unicorn_closer', 'custom'] as const;
 
 export const ROLES = ['owner', 'admin', 'closer'] as const;
 
