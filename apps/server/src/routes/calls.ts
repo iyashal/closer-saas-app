@@ -155,18 +155,9 @@ export async function callsRoutes(app: FastifyInstance) {
     const settings = org.settings as { bot_display_name?: string } | null;
     const botName = settings?.bot_display_name?.trim() || `${org.name} Notes`;
     const webhookUrl = `${env.API_URL}/webhooks/recall`;
-    // Derive the WebSocket URL from API_URL — Recall.ai streams audio here once the bot joins.
-    const audioWsUrl =
-      env.API_URL.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://') +
-      `/ws/recall/${call.id}`;
 
     try {
-      const bot = await createBot({
-        meeting_url,
-        bot_name: botName,
-        webhook_url: webhookUrl,
-        audio_ws_url: audioWsUrl,
-      });
+      const bot = await createBot({ meeting_url, bot_name: botName, webhook_url: webhookUrl });
 
       await supabase.from('calls').update({ recall_bot_id: bot.id }).eq('id', call.id);
 
