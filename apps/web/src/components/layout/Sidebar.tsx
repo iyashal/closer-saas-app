@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   PhoneCall,
@@ -11,6 +12,7 @@ import {
   Tag,
 } from 'lucide-react';
 import { useOrg } from '@/hooks/use-org';
+import { api } from '@/lib/api';
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -23,6 +25,19 @@ const navItems = [
 
 export default function Sidebar() {
   const { isTeamPlan, isAdmin } = useOrg();
+  const [liveCount, setLiveCount] = useState(0);
+
+  useEffect(() => {
+    const fetch = () => {
+      api
+        .get<{ id: string }[]>('/dashboard/live-calls')
+        .then((d) => setLiveCount(d.length))
+        .catch(() => {});
+    };
+    fetch();
+    const id = setInterval(fetch, 10_000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <aside className="w-56 bg-[#141414] border-r border-white/5 flex flex-col h-full shrink-0">
@@ -45,7 +60,12 @@ export default function Sidebar() {
             }
           >
             <Icon size={16} />
-            {label}
+            <span className="flex-1">{label}</span>
+            {to === '/dashboard' && liveCount > 0 && (
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-green-500 text-[10px] font-bold text-white">
+                {liveCount}
+              </span>
+            )}
           </NavLink>
         ))}
 
