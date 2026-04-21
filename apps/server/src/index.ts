@@ -19,6 +19,7 @@ import { usersRoutes } from './routes/users.js';
 import { invitationsRoutes } from './routes/invitations.js';
 import { callsRoutes } from './routes/calls.js';
 import { recallWebhookRoutes } from './routes/webhooks/recall.js';
+import { dashboardRoutes } from './routes/dashboard.js';
 import { startInviteExpiryChecker } from './jobs/invite-expiry-checker.js';
 import { registerWsRoutes, stopAllSessions } from './ws/handler.js';
 
@@ -48,6 +49,7 @@ await app.register(offersRoutes, { prefix: '/offers' });
 await app.register(usersRoutes, { prefix: '/users' });
 await app.register(invitationsRoutes, { prefix: '/invitations' });
 await app.register(callsRoutes, { prefix: '/calls' });
+await app.register(dashboardRoutes, { prefix: '/dashboard' });
 await app.register(recallWebhookRoutes, { prefix: '/webhooks/recall' });
 await app.register(registerWsRoutes);
 
