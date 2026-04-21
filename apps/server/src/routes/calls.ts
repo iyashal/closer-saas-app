@@ -53,6 +53,73 @@ export async function callsRoutes(app: FastifyInstance) {
     return reply.send(data ?? []);
   });
 
+  app.get('/history', { preHandler: authMiddleware }, async (request, reply) => {
+    const req = request as RequestWithUser;
+    const user = req.currentUser;
+
+    const historyQuerySchema = z.object({
+      page: z.coerce.number().int().min(1).default(1),
+      limit: z.coerce.number().int().min(1).max(50).default(20),
+      outcome: z.enum(['closed', 'follow_up', 'lost', 'all']).default('all'),
+      scope: z.enum(['own', 'team']).default('own'),
+    });
+
+    const { page, limit, outcome, scope: rawScope } = historyQuerySchema.parse(request.query);
+    const isAdmin = user.role === 'owner' || user.role === 'admin';
+    const scope = rawScope === 'team' && isAdmin ? 'team' : 'own';
+    const offset = (page - 1) * limit;
+
+    logger.info({ userId: user.id, orgId: user.org_id, page, outcome, scope }, 'GET /calls/history');
+
+    let query = supabase
+      .from('calls')
+      .select('id, prospect_name, outcome, deal_value, deal_health_score, duration_seconds, created_at, framework_used, user_id, offers(name)', { count: 'exact' })
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (scope === 'own') {
+      query = query.eq('user_id', user.id);
+    } else {
+      query = query.eq('org_id', user.org_id);
+    }
+
+    if (outcome !== 'all') query = query.eq('outcome', outcome);
+
+    const { data, error, count } = await query;
+    if (error) {
+      logger.error({ userId: user.id, err: error }, 'GET /calls/history failed');
+      return reply.send({ calls: [], total: 0, page, limit });
+    }
+
+    const calls = data ?? [];
+
+    let nameMap = new Map<string, string | null>();
+    if (scope === 'team' && calls.length > 0) {
+      const uids = [...new Set(calls.map((c) => c.user_id))];
+      const { data: users } = await supabase.from('users').select('id, full_name').in('id', uids);
+      nameMap = new Map((users ?? []).map((u) => [u.id, u.full_name as string | null]));
+    }
+
+    return reply.send({
+      calls: calls.map((c) => ({
+        id: c.id,
+        prospect_name: c.prospect_name,
+        offer_name: (c.offers as { name?: string } | null)?.name ?? null,
+        outcome: c.outcome,
+        deal_value: c.deal_value,
+        deal_health_score: c.deal_health_score,
+        duration_seconds: c.duration_seconds,
+        created_at: c.created_at,
+        framework_used: c.framework_used,
+        ...(scope === 'team' ? { closer_name: nameMap.get(c.user_id) ?? null } : {}),
+      })),
+      total: count ?? 0,
+      page,
+      limit,
+    });
+  });
+
   app.get('/:id', { preHandler: authMiddleware }, async (request, reply) => {
     const req = request as RequestWithUser;
     const user = req.currentUser;
