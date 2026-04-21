@@ -262,6 +262,386 @@ export async function getLeaderboard(
   return entries;
 }
 
+// ── Chart analytics ─────────────────────────────────────────────────────────
+
+export type ChartRange = '7' | '30' | '90' | 'all';
+
+export interface TrendPoint {
+  date: string;
+  close_rate: number;
+  calls: number;
+}
+
+export interface TrendSeries {
+  user_id: string;
+  full_name: string | null;
+  data: TrendPoint[];
+}
+
+export interface CloseRateTrendResult {
+  data: TrendPoint[];
+  series?: TrendSeries[];
+}
+
+export interface ObjectionFreqPoint {
+  category: string;
+  count: number;
+  handled_well: number;
+}
+
+export interface CueCardEffectivenessResult {
+  total_shown: number;
+  total_used: number;
+  usage_rate: number;
+  by_category: Array<{ category: string; shown: number; used: number; rate: number }>;
+}
+
+export interface TalkRatioPoint {
+  date: string;
+  closer_ratio: number;
+  prospect_ratio: number;
+}
+
+export interface DealHealthPoint {
+  date: string;
+  avg_score: number;
+  calls: number;
+}
+
+export interface RevenueTrendPoint {
+  date: string;
+  revenue: number;
+  deals: number;
+}
+
+function getChartStartDate(range: ChartRange): string | null {
+  if (range === 'all') return null;
+  const now = new Date();
+  now.setDate(now.getDate() - parseInt(range));
+  return now.toISOString();
+}
+
+function getBucketKey(dateStr: string, range: ChartRange): string {
+  const d = new Date(dateStr);
+  if (range === '7') {
+    return d.toISOString().slice(0, 10);
+  } else if (range === '30') {
+    const dow = d.getDay();
+    const diff = d.getDate() - dow + (dow === 0 ? -6 : 1);
+    const monday = new Date(d);
+    monday.setDate(diff);
+    return monday.toISOString().slice(0, 10);
+  } else {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  }
+}
+
+async function getCallIdsForChart(
+  userId: string,
+  orgId: string,
+  scope: 'own' | 'team',
+  startDate: string | null,
+): Promise<string[]> {
+  let query = supabase
+    .from('calls')
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('status', 'completed');
+  if (scope === 'own') query = query.eq('user_id', userId);
+  if (startDate) query = query.gte('created_at', startDate);
+  const { data } = await query;
+  return (data ?? []).map((c) => c.id);
+}
+
+export async function getCloseRateTrend(
+  userId: string,
+  orgId: string,
+  range: ChartRange,
+  scope: 'own' | 'team',
+): Promise<CloseRateTrendResult> {
+  const startDate = getChartStartDate(range);
+
+  let query = supabase
+    .from('calls')
+    .select('user_id, outcome, created_at')
+    .eq('org_id', orgId)
+    .eq('status', 'completed');
+  if (scope === 'own') query = query.eq('user_id', userId);
+  if (startDate) query = query.gte('created_at', startDate);
+
+  const { data, error } = await query;
+  if (error) {
+    logger.error({ userId, orgId, range, scope, err: error }, 'getCloseRateTrend failed');
+    throw error;
+  }
+
+  const calls = data ?? [];
+
+  const agg = new Map<string, { closed: number; decided: number; total: number }>();
+  for (const c of calls) {
+    const key = getBucketKey(c.created_at, range);
+    if (!agg.has(key)) agg.set(key, { closed: 0, decided: 0, total: 0 });
+    const b = agg.get(key)!;
+    b.total++;
+    if (['closed', 'lost', 'follow_up'].includes(c.outcome ?? '')) b.decided++;
+    if (c.outcome === 'closed') b.closed++;
+  }
+
+  const aggregateData: TrendPoint[] = Array.from(agg.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, b]) => ({
+      date,
+      close_rate: b.decided > 0 ? Math.round((b.closed / b.decided) * 100) : 0,
+      calls: b.total,
+    }));
+
+  if (scope !== 'team') return { data: aggregateData };
+
+  const byUser = new Map<string, typeof calls>();
+  for (const c of calls) {
+    if (!byUser.has(c.user_id)) byUser.set(c.user_id, []);
+    byUser.get(c.user_id)!.push(c);
+  }
+
+  const { data: members } = await supabase
+    .from('users')
+    .select('id, full_name')
+    .eq('org_id', orgId);
+  const nameMap = new Map((members ?? []).map((m) => [m.id, m.full_name as string | null]));
+
+  const series: TrendSeries[] = [];
+  for (const [uid, userCalls] of byUser) {
+    const userAgg = new Map<string, { closed: number; decided: number; total: number }>();
+    for (const c of userCalls) {
+      const key = getBucketKey(c.created_at, range);
+      if (!userAgg.has(key)) userAgg.set(key, { closed: 0, decided: 0, total: 0 });
+      const b = userAgg.get(key)!;
+      b.total++;
+      if (['closed', 'lost', 'follow_up'].includes(c.outcome ?? '')) b.decided++;
+      if (c.outcome === 'closed') b.closed++;
+    }
+    series.push({
+      user_id: uid,
+      full_name: nameMap.get(uid) ?? null,
+      data: Array.from(userAgg.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, b]) => ({
+          date,
+          close_rate: b.decided > 0 ? Math.round((b.closed / b.decided) * 100) : 0,
+          calls: b.total,
+        })),
+    });
+  }
+
+  return { data: aggregateData, series };
+}
+
+export async function getObjectionFrequency(
+  userId: string,
+  orgId: string,
+  range: ChartRange,
+  scope: 'own' | 'team',
+): Promise<ObjectionFreqPoint[]> {
+  const startDate = getChartStartDate(range);
+  const callIds = await getCallIdsForChart(userId, orgId, scope, startDate);
+  if (callIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('cue_cards_shown')
+    .select('was_used, framework_cards(category)')
+    .in('call_id', callIds);
+
+  if (error) {
+    logger.error({ userId, orgId, range, scope, err: error }, 'getObjectionFrequency failed');
+    throw error;
+  }
+
+  const catMap = new Map<string, { count: number; handled: number }>();
+  for (const row of data ?? []) {
+    const category = (row.framework_cards as { category?: string } | null)?.category;
+    if (!category) continue;
+    if (!catMap.has(category)) catMap.set(category, { count: 0, handled: 0 });
+    const c = catMap.get(category)!;
+    c.count++;
+    if (row.was_used) c.handled++;
+  }
+
+  return Array.from(catMap.entries())
+    .map(([category, { count, handled }]) => ({ category, count, handled_well: handled }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+}
+
+export async function getCueCardEffectiveness(
+  userId: string,
+  orgId: string,
+  range: ChartRange,
+  scope: 'own' | 'team',
+): Promise<CueCardEffectivenessResult> {
+  const startDate = getChartStartDate(range);
+  const callIds = await getCallIdsForChart(userId, orgId, scope, startDate);
+  if (callIds.length === 0) {
+    return { total_shown: 0, total_used: 0, usage_rate: 0, by_category: [] };
+  }
+
+  const { data, error } = await supabase
+    .from('cue_cards_shown')
+    .select('was_used, framework_cards(category)')
+    .in('call_id', callIds);
+
+  if (error) {
+    logger.error({ err: error }, 'getCueCardEffectiveness failed');
+    throw error;
+  }
+
+  const rows = data ?? [];
+  const totalShown = rows.length;
+  const totalUsed = rows.filter((r) => r.was_used).length;
+
+  const catMap = new Map<string, { shown: number; used: number }>();
+  for (const row of rows) {
+    const cat = (row.framework_cards as { category?: string } | null)?.category ?? 'other';
+    if (!catMap.has(cat)) catMap.set(cat, { shown: 0, used: 0 });
+    const c = catMap.get(cat)!;
+    c.shown++;
+    if (row.was_used) c.used++;
+  }
+
+  return {
+    total_shown: totalShown,
+    total_used: totalUsed,
+    usage_rate: totalShown > 0 ? Math.round((totalUsed / totalShown) * 100) : 0,
+    by_category: Array.from(catMap.entries()).map(([category, { shown, used }]) => ({
+      category,
+      shown,
+      used,
+      rate: shown > 0 ? Math.round((used / shown) * 100) : 0,
+    })),
+  };
+}
+
+export async function getTalkRatioTrend(
+  userId: string,
+  orgId: string,
+  range: ChartRange,
+  scope: 'own' | 'team',
+): Promise<TalkRatioPoint[]> {
+  const startDate = getChartStartDate(range);
+
+  let query = supabase
+    .from('calls')
+    .select('talk_ratio_closer, talk_ratio_prospect, created_at')
+    .eq('org_id', orgId)
+    .eq('status', 'completed')
+    .not('talk_ratio_closer', 'is', null);
+  if (scope === 'own') query = query.eq('user_id', userId);
+  if (startDate) query = query.gte('created_at', startDate);
+
+  const { data, error } = await query;
+  if (error) {
+    logger.error({ err: error }, 'getTalkRatioTrend failed');
+    throw error;
+  }
+
+  const buckets = new Map<string, { closerSum: number; prospectSum: number; count: number }>();
+  for (const c of data ?? []) {
+    const key = getBucketKey(c.created_at, range);
+    if (!buckets.has(key)) buckets.set(key, { closerSum: 0, prospectSum: 0, count: 0 });
+    const b = buckets.get(key)!;
+    b.closerSum += c.talk_ratio_closer ?? 0;
+    b.prospectSum += c.talk_ratio_prospect ?? 0;
+    b.count++;
+  }
+
+  return Array.from(buckets.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, b]) => ({
+      date,
+      closer_ratio: b.count > 0 ? Math.round(b.closerSum / b.count) : 0,
+      prospect_ratio: b.count > 0 ? Math.round(b.prospectSum / b.count) : 0,
+    }));
+}
+
+export async function getDealHealthTrend(
+  userId: string,
+  orgId: string,
+  range: ChartRange,
+  scope: 'own' | 'team',
+): Promise<DealHealthPoint[]> {
+  const startDate = getChartStartDate(range);
+
+  let query = supabase
+    .from('calls')
+    .select('deal_health_score, created_at')
+    .eq('org_id', orgId)
+    .eq('status', 'completed')
+    .not('deal_health_score', 'is', null);
+  if (scope === 'own') query = query.eq('user_id', userId);
+  if (startDate) query = query.gte('created_at', startDate);
+
+  const { data, error } = await query;
+  if (error) {
+    logger.error({ err: error }, 'getDealHealthTrend failed');
+    throw error;
+  }
+
+  const buckets = new Map<string, { sum: number; count: number }>();
+  for (const c of data ?? []) {
+    const key = getBucketKey(c.created_at, range);
+    if (!buckets.has(key)) buckets.set(key, { sum: 0, count: 0 });
+    const b = buckets.get(key)!;
+    b.sum += c.deal_health_score ?? 0;
+    b.count++;
+  }
+
+  return Array.from(buckets.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, b]) => ({
+      date,
+      avg_score: b.count > 0 ? Math.round(b.sum / b.count) : 0,
+      calls: b.count,
+    }));
+}
+
+export async function getRevenueTrend(
+  userId: string,
+  orgId: string,
+  range: ChartRange,
+  scope: 'own' | 'team',
+): Promise<RevenueTrendPoint[]> {
+  const startDate = getChartStartDate(range);
+
+  let query = supabase
+    .from('calls')
+    .select('deal_value, created_at')
+    .eq('org_id', orgId)
+    .eq('status', 'completed')
+    .eq('outcome', 'closed');
+  if (scope === 'own') query = query.eq('user_id', userId);
+  if (startDate) query = query.gte('created_at', startDate);
+
+  const { data, error } = await query;
+  if (error) {
+    logger.error({ err: error }, 'getRevenueTrend failed');
+    throw error;
+  }
+
+  const buckets = new Map<string, { revenue: number; deals: number }>();
+  for (const c of data ?? []) {
+    const key = getBucketKey(c.created_at, range);
+    if (!buckets.has(key)) buckets.set(key, { revenue: 0, deals: 0 });
+    const b = buckets.get(key)!;
+    b.revenue += c.deal_value ?? 0;
+    b.deals++;
+  }
+
+  return Array.from(buckets.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, b]) => ({ date, revenue: b.revenue, deals: b.deals }));
+}
+
 export async function getRecentCalls(
   userId: string,
   orgId: string,
