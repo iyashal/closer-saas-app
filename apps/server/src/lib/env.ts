@@ -25,10 +25,15 @@ const envSchema = z.object({
   STRIPE_SECRET_KEY: z.string().min(1),
   STRIPE_PUBLISHABLE_KEY: z.string().min(1),
   STRIPE_WEBHOOK_SECRET: z.string().default(''),
+  STRIPE_STARTER_MONTHLY_PRICE_ID: z.string().default(''),
+  STRIPE_STARTER_ANNUAL_PRICE_ID: z.string().default(''),
   STRIPE_SOLO_MONTHLY_PRICE_ID: z.string().min(1),
   STRIPE_SOLO_ANNUAL_PRICE_ID: z.string().min(1),
   STRIPE_TEAM_MONTHLY_PRICE_ID: z.string().min(1),
   STRIPE_TEAM_ANNUAL_PRICE_ID: z.string().min(1),
+  BILLING_PORTAL_RETURN_URL: z.string().default('http://localhost:5173/settings/billing'),
+  CHECKOUT_SUCCESS_URL: z.string().default('http://localhost:5173/settings/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}'),
+  CHECKOUT_CANCEL_URL: z.string().default('http://localhost:5173/settings/billing?checkout=canceled'),
 
   RESEND_API_KEY: z.string().min(1),
 
