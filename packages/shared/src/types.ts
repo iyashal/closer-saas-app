@@ -1,6 +1,6 @@
 export type UserRole = 'owner' | 'admin' | 'closer';
 
-export type OrgPlan = 'trial' | 'solo' | 'team' | 'canceled';
+export type OrgPlan = 'trial' | 'starter' | 'solo' | 'team' | 'canceled';
 
 export type CallStatus =
   | 'scheduled'
@@ -51,6 +51,8 @@ export type CoachingNudge =
 
 export type Framework = 'nepq' | 'straight_line' | 'unicorn_closer' | 'custom';
 
+export type SubscriptionStatus = 'active' | 'trialing' | 'past_due' | 'canceled' | 'incomplete' | 'unpaid';
+
 export interface Organization {
   id: string;
   name: string;
@@ -61,6 +63,10 @@ export interface Organization {
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   max_seats: number;
+  billing_interval: 'month' | 'year' | null;
+  subscription_status: SubscriptionStatus | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
   settings: {
     bot_display_name: string;
     consent_disclosure_text: string;

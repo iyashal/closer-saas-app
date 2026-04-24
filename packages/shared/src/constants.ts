@@ -18,7 +18,7 @@ export const FRAMEWORKS = ['nepq', 'straight_line', 'unicorn_closer', 'custom'] 
 
 export const ROLES = ['owner', 'admin', 'closer'] as const;
 
-export const PLANS = ['trial', 'solo', 'team', 'canceled'] as const;
+export const PLAN_NAMES = ['trial', 'starter', 'solo', 'team', 'canceled'] as const;
 
 export const CALL_STATUSES = [
   'scheduled',
