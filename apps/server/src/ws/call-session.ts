@@ -67,6 +67,9 @@ export class CallSession {
   private readonly statusChannel: ReturnType<typeof supabase.channel>;
   private readonly cueCardsChannel: ReturnType<typeof supabase.channel>;
 
+  private countedTimer: NodeJS.Timeout | null = null;
+  private static readonly DAILY_LIMIT_THRESHOLD_MS = 5 * 60 * 1000;
+
   constructor(callId: string, userId: string, orgId: string) {
     this.callId = callId;
     this.userId = userId;
@@ -90,6 +93,7 @@ export class CallSession {
     await this.subscribeChannels();
     this.startFlushTimer();
     this.startTalkRatioTimer();
+    this.scheduleCountedTimer();
   }
 
   async stop(): Promise<void> {
@@ -103,6 +107,7 @@ export class CallSession {
 
     if (this.flushTimer) clearInterval(this.flushTimer);
     if (this.talkRatioTimer) clearInterval(this.talkRatioTimer);
+    if (this.countedTimer) clearTimeout(this.countedTimer);
 
     await this.flushPendingTranscripts().catch((err) =>
       logger.error({ err, callId: this.callId }, 'Error flushing transcripts on stop'),
@@ -185,6 +190,48 @@ export class CallSession {
       .catch((err) =>
         logger.error({ err, callId: this.callId }, 'Failed to broadcast cue card'),
       );
+  }
+
+  // ── Starter daily call counting ────────────────────────────────────────────
+
+  private scheduleCountedTimer(): void {
+    // Check if the call was already live for >= 5 min before this session started
+    // (handles server restart mid-call)
+    void supabase
+      .from('calls')
+      .select('started_at, counted_for_daily_limit')
+      .eq('id', this.callId)
+      .single()
+      .then(
+        ({ data }) => {
+          if (!data || data.counted_for_daily_limit) return;
+          const startedAt = data.started_at ? new Date(data.started_at).getTime() : this.sessionStartMs;
+          const elapsed = Date.now() - startedAt;
+          const remaining = CallSession.DAILY_LIMIT_THRESHOLD_MS - elapsed;
+          if (remaining <= 0) {
+            this.markCounted();
+          } else {
+            this.countedTimer = setTimeout(() => this.markCounted(), remaining);
+          }
+        },
+        (err: unknown) => logger.error({ err, callId: this.callId }, 'Failed to schedule counted timer'),
+      );
+  }
+
+  private markCounted(): void {
+    void supabase
+      .from('calls')
+      .update({ counted_for_daily_limit: true })
+      .eq('id', this.callId)
+      .eq('counted_for_daily_limit', false)
+      .in('status', ['live', 'processing', 'completed'])
+      .then(({ error }) => {
+        if (error) {
+          logger.error({ err: error, callId: this.callId }, 'Failed to mark call as counted');
+        } else {
+          logger.info({ callId: this.callId, userId: this.userId, orgId: this.orgId }, 'Call marked counted for daily limit');
+        }
+      });
   }
 
   // ── Supabase channel subscriptions ────────────────────────────────────────

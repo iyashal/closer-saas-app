@@ -19,6 +19,8 @@ import { usersRoutes } from './routes/users.js';
 import { invitationsRoutes } from './routes/invitations.js';
 import { callsRoutes } from './routes/calls.js';
 import { recallWebhookRoutes } from './routes/webhooks/recall.js';
+import { stripeWebhookRoutes } from './routes/webhooks/stripe.js';
+import { billingRoutes } from './routes/billing.js';
 import { dashboardRoutes } from './routes/dashboard.js';
 import { analyticsRoutes } from './routes/analytics.js';
 import { frameworksRoutes } from './routes/frameworks.js';
@@ -54,7 +56,9 @@ await app.register(callsRoutes, { prefix: '/calls' });
 await app.register(dashboardRoutes, { prefix: '/dashboard' });
 await app.register(analyticsRoutes, { prefix: '/analytics' });
 await app.register(frameworksRoutes, { prefix: '/frameworks' });
+await app.register(billingRoutes, { prefix: '/billing' });
 await app.register(recallWebhookRoutes, { prefix: '/webhooks/recall' });
+await app.register(stripeWebhookRoutes, { prefix: '/webhooks/stripe' });
 await app.register(registerWsRoutes);
 
 // Start background jobs
