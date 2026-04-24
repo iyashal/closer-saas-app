@@ -8,7 +8,10 @@ import { useAuthStore } from '@/stores/auth-store';
 import RoleGate from '@/components/RoleGate';
 import InviteModal from '@/components/settings/InviteModal';
 import MemberRow from '@/components/settings/MemberRow';
+import BillingPage from '@/pages/billing';
 import type { UserRole, Invitation, User as UserRecord } from '@/types';
+
+const BillingPageContent = BillingPage;
 
 // ─── Shared Tab Nav ──────────────────────────────────────────────────────────
 
@@ -512,18 +515,7 @@ function NotificationsTab() {
 // ─── Billing Tab ─────────────────────────────────────────────────────────────
 
 function BillingTab() {
-  return (
-    <div className="max-w-lg space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold text-white">Billing</h2>
-        <p className="text-sm text-gray-500 mt-0.5">Manage your subscription and payment method.</p>
-      </div>
-      <div className="bg-[#141414] border border-white/5 rounded-xl p-8 text-center">
-        <CreditCard size={28} className="mx-auto text-gray-600 mb-3" />
-        <p className="text-sm text-gray-500">Billing management coming soon.</p>
-      </div>
-    </div>
-  );
+  return <BillingPageContent />;
 }
 
 // ─── Danger Zone Tab ─────────────────────────────────────────────────────────

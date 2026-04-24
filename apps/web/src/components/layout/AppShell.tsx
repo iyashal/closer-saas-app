@@ -1,5 +1,6 @@
 import Sidebar from './Sidebar';
 import Header from './Header';
+import PaywallModal from '@/components/PaywallModal';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -15,6 +16,7 @@ export default function AppShell({ children }: AppShellProps) {
           {children}
         </main>
       </div>
+      <PaywallModal />
     </div>
   );
 }
