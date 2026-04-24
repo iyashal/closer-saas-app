@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { usePaywallStore } from '@/stores/paywall-store';
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
@@ -18,9 +19,19 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...init.headers,
     },
   });
+
+  if (res.status === 402) {
+    const body = await res.json().catch(() => ({}) as Record<string, unknown>) as Record<string, unknown>;
+    const reason = (body['error'] === 'daily_limit_reached')
+      ? 'daily_limit_reached'
+      : 'plan_required';
+    usePaywallStore.getState().open(reason, body['required_plan'] as string | undefined);
+    throw new Error((body['message'] as string | undefined) ?? 'Upgrade required');
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(body.message ?? 'Request failed');
+    throw new Error((body as { message?: string }).message ?? 'Request failed');
   }
   return res.json() as Promise<T>;
 }
