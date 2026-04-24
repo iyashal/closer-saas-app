@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { authMiddleware, type RequestWithUser } from '../lib/auth-middleware.js';
+import { requireActivePlan, checkStarterDailyLimit } from '../lib/plan-guard.js';
 import { supabase } from '../lib/supabase.js';
 import { logger } from '../lib/logger.js';
 import { NotFoundError } from '../lib/errors.js';
@@ -143,7 +144,10 @@ export async function callsRoutes(app: FastifyInstance) {
     return reply.send(data);
   });
 
-  app.post('/launch', { preHandler: authMiddleware }, async (request, reply) => {
+  app.post(
+    '/launch',
+    { preHandler: [authMiddleware, requireActivePlan(), checkStarterDailyLimit()] },
+    async (request, reply) => {
     const req = request as RequestWithUser;
     const user = req.currentUser;
 
@@ -162,22 +166,12 @@ export async function callsRoutes(app: FastifyInstance) {
 
     const { data: org } = await supabase
       .from('organizations')
-      .select('plan, trial_ends_at, settings, name')
+      .select('settings, name')
       .eq('id', user.org_id)
       .single();
 
     if (!org) {
       return reply.status(400).send({ message: 'Organization not found' });
-    }
-
-    const isTrialActive =
-      org.plan === 'trial' && org.trial_ends_at && new Date(org.trial_ends_at) > new Date();
-    const isPaidActive = org.plan === 'solo' || org.plan === 'team';
-
-    if (!isTrialActive && !isPaidActive) {
-      return reply.status(403).send({
-        message: 'Your trial has expired. Upgrade your plan to launch calls.',
-      });
     }
 
     const { data: existingCalls } = await supabase
